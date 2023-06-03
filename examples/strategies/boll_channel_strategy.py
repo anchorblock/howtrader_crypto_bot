@@ -8,7 +8,6 @@ from howtrader.trader.utility import BarGenerator, ArrayManager
 from decimal import Decimal
 
 class BollChannelStrategy(CtaTemplate):
-    """"""
 
     author = "用Python的交易员"
 
@@ -49,15 +48,14 @@ class BollChannelStrategy(CtaTemplate):
     ]
 
     def __init__(self, cta_engine, strategy_name, vt_symbol, setting):
-        """"""
         super().__init__(cta_engine, strategy_name, vt_symbol, setting)
 
         self.bg = BarGenerator(self.on_bar, 15, self.on_15min_bar)
         self.am = ArrayManager()
 
     def on_init(self):
-        """
-        Callback when strategy is inited.
+        # trunk-ignore(ruff/D401)
+        """Callback when strategy is inited.
         """
         self.write_log("策略初始化")
         self.load_bar(10)
