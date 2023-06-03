@@ -1,5 +1,4 @@
 from howtrader.event import EventEngine, Event
-from howtrader.trader.event import EVENT_TV_SIGNAL
 from howtrader.trader.engine import MainEngine
 from howtrader.trader.ui import MainWindow, create_qapp
 from howtrader.trader.setting import SETTINGS
@@ -11,63 +10,51 @@ from howtrader.app.algo_trading import AlgoTradingApp
 from howtrader.app.risk_manager import RiskManagerApp
 from howtrader.app.spread_trading import SpreadTradingApp
 from howtrader.app.tradingview import TradingViewApp
+
 from threading import Thread
 from vnpy_chartwizard import ChartWizardApp
 import json
 import multiprocessing
 from flask import Flask, request
-
-# create global event_engine
+import json
+from logging import INFO
+import os
+import sys
+import importlib
+from time import sleep
+# importlib.reload(howtrader)
 event_engine: EventEngine = EventEngine()
-passphrase = SETTINGS.get("passphrase", "")
-port = SETTINGS.get("port", 9999)
+import sys
 
-app = Flask(__name__)
 
-@app.route('/', methods=['GET'])
-def welcome():
-    return "Hi, this is tv server!"
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    try:
-        data = json.loads(request.data)
-        if data.get('passphrase', None) != passphrase:
-            return {"status": "failure", "msg": "passphrase is incorrect"}
-        del data['passphrase'] # del it for safety.
-        event:Event = Event(type=EVENT_TV_SIGNAL, data=data)
-        event_engine.put(event)
-        return {"status": "success", "msg": ""}
-    except Exception as error:
-        return {"status": "error", "msg": str(error)}
-
-def start_tv_server():
-    app.run(host="127.0.0.1", port=port)
 
 def main():
-    """"""
     qapp = create_qapp()
     main_engine = MainEngine(event_engine)
+    with open("howtrader/connect_binance_usdt.json") as f:      # The credentials shoulb be stored in howtrader/connect_binance_usdt.json file for features gateway.
+        config = json.load(f)
+        key = config["key"]
+        secret = config["secret"]
+        proxy_host = config["proxy_host"]
+        proxy_port = config["proxy_port"]
+        user_profile = {'key': key, 'secret': secret, 'proxy_host': proxy_host, 'proxy_port': proxy_port}
 
     main_engine.add_gateway(BinanceUsdtGateway)
-    main_engine.add_app(CtaStrategyApp)
-    main_engine.add_app(TradingViewApp)
-    main_engine.add_app(DataManagerApp)
-    main_engine.add_app(AlgoTradingApp)
-    main_engine.add_app(DataRecorderApp)
-    main_engine.add_app(RiskManagerApp)
-    main_engine.add_app(SpreadTradingApp)
+    main_engine.connect(setting=user_profile, gateway_name="BINANCE_USDT")
+    sleep(5)
+    cta_engine = main_engine.add_app(CtaStrategyApp)
     main_engine.add_app(ChartWizardApp)
-
+    
+    cta_engine.init_engine()
+    cta_engine.stop_all_strategies()
+    cta_engine.init_all_strategies()
+    sleep(10)
+    cta_engine.start_all_strategies()
+    sleep(60)
     main_window = MainWindow(main_engine, event_engine)
     main_window.showMaximized()
-
-    t1 = Thread(target=start_tv_server)
-    t1.daemon = True
-    t1.start()
-
     qapp.exec()
-
 
 if __name__ == "__main__":
     process = multiprocessing.Process(target=main)
