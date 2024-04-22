@@ -1,15 +1,15 @@
 
-from howtrader.gateway.binance.binance_usdt_gateway import BinanceUsdtGateway
-from howtrader.app.cta_strategy.strategies.dual_ma import DualMAStrategy
-from howtrader.trader.ui import MainWindow, create_qapp
-from howtrader.trader.engine import MainEngine
-from howtrader.gateway.binance import BinanceUsdtGateway
-from howtrader.event import EventEngine
-from howtrader.app.cta_strategy import CtaStrategyApp
-from vnpy_chartwizard import ChartWizardApp
+import json
 from time import sleep
 import multiprocessing
-import json
+from howtrader.event import EventEngine
+#from vnpy_chartwizard import ChartWizardApp
+from howtrader.trader.engine import MainEngine
+from howtrader.app.cta_strategy import CtaStrategyApp
+from howtrader.trader.ui import MainWindow, create_qapp
+from howtrader.gateway.binance import BinanceUsdtGateway
+from howtrader.app.cta_strategy.strategies.dual_ma import DualMAStrategy
+from howtrader.gateway.binance.binance_usdt_gateway import BinanceUsdtGateway
 
 
 
@@ -54,7 +54,7 @@ def main():
     main_engine.connect(setting=credentials, gateway_name="BINANCE_USDT")
 
     cta_engine = main_engine.add_app(CtaStrategyApp)
-    main_engine.add_app(ChartWizardApp)
+    #main_engine.add_app(ChartWizardApp)
 
     cta_engine.init_engine()
     cta_engine.stop_all_strategies()
