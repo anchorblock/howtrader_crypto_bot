@@ -7,6 +7,7 @@ from howtrader.trader.setting import SETTINGS
 from howtrader.trader.engine import MainEngine, LogEngine
 
 from howtrader.gateway.binance import BinanceSpotGateway, BinanceUsdtGateway
+from howtrader.gateway.okx import OkxGateway
 from howtrader.app.cta_strategy import CtaStrategyApp, CtaEngine
 from howtrader.app.cta_strategy.base import EVENT_CTA_LOG
 
@@ -15,13 +16,14 @@ SETTINGS["log.active"] = True
 SETTINGS["log.level"] = INFO
 SETTINGS["log.console"] = True
 
-
-usdt_gateway_setting = {
-        "key": "",
-        "secret": "",
-        "proxy_host": "",
-        "proxy_port": 0,
-    }
+okx_gateway_setting = {
+    "key": "",
+    "secret": "",
+    "passphrase": "",
+    "proxy_host": "",
+    "proxy_port": 0,
+    "server": "REAL"
+}
 
 
 def run():
@@ -32,7 +34,7 @@ def run():
 
     event_engine = EventEngine()
     main_engine: MainEngine = MainEngine(event_engine)
-    main_engine.add_gateway(BinanceUsdtGateway)
+    main_engine.add_gateway(OkxGateway)
     cta_engine: CtaEngine = main_engine.add_app(CtaStrategyApp)
     main_engine.write_log("setup main engine")
 
@@ -40,8 +42,8 @@ def run():
     event_engine.register(EVENT_CTA_LOG, log_engine.process_log_event)
     main_engine.write_log("register event listener")
 
-    main_engine.connect(usdt_gateway_setting, "BINANCE_USDT")
-    main_engine.write_log("connect binance usdt gate way")
+    main_engine.connect(okx_gateway_setting, "OKX")
+    main_engine.write_log("connect OKX gateway")
 
     sleep(10)
 

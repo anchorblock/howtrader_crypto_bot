@@ -292,8 +292,7 @@ class BinanceSpotRestAPi(RestClient):
             request.params["timestamp"] = timestamp
 
             query: str = urllib.parse.urlencode(sorted(request.params.items()))
-            signature: bytes = hmac.new(self.secret, query.encode(
-                "utf-8"), hashlib.sha256).hexdigest()
+            signature: str = hmac.new(self.secret, query.encode("utf-8"), hashlib.sha256).hexdigest()
 
             query += "&signature={}".format(signature)
             path: str = request.path + "?" + query
@@ -820,7 +819,7 @@ class BinanceSpotRestAPi(RestClient):
 
         interval = INTERVAL_VT2BINANCE.get(req.interval, None)
         if not interval:
-            print(f"unsupport interval: {req.interval}")
+            print(f"unsupported interval: {req.interval}")
             return None
 
         # end_time: int = int(datetime.timestamp(req.end))

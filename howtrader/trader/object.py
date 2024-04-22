@@ -6,11 +6,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from logging import INFO
 from decimal import Decimal
-
+import pandas as pd
 from .constant import Direction, Exchange, Interval, Offset, Status, Product, OptionType, OrderType
 
-ACTIVE_STATUSES = set([Status.SUBMITTING, Status.NOTTRADED, Status.PARTTRADED])
-import pandas as pd
+ACTIVE_STATUSES = {Status.SUBMITTING, Status.NOTTRADED, Status.PARTTRADED}  # define the active status set.
+
 
 @dataclass
 class BaseData:
@@ -248,8 +248,8 @@ class ContractData(BaseData):
     size: Decimal
     pricetick: Decimal
     min_notional: Decimal = Decimal("1")  # order's value, price * amount >= min_notional
-
-    min_volume: Decimal = Decimal("1")           # minimum trading volume of the contract
+    min_size: Decimal = Decimal("1")  # place minimum order size, 最小的下单数量，okx使用.
+    min_volume: Decimal = Decimal("1")  # minimum trading volume of the contract, 下单精度要求.
     stop_supported: bool = False    # whether server supports stop order
     net_position: bool = False      # whether gateway uses net position volume
     history_data: bool = False      # whether gateway provides bar history data
@@ -266,17 +266,20 @@ class ContractData(BaseData):
         """"""
         self.vt_symbol: str = f"{self.symbol}.{self.exchange.value}"
 
+
 @dataclass
-class PremiumRateData(BaseData):
+class FundingRateData(BaseData):
     """
-    PremiumRate
+    FundingRate/PremiumIndex
     """
-    symbol:str
+    symbol: str
     exchange: Exchange
+    last_funding_rate_str: str
+    next_funding_time_str: str
     next_funding_time: datetime
-    updated_datetime: datetime
-    last_funding_rate: Decimal = Decimal("0")
-    interest_rate: Decimal = Decimal("0")
+    last_funding_rate: float
+    bid_spread_pct: float = 0
+    ask_spread_pct: float = 0
 
     def __post_init__(self):
         """"""
@@ -296,6 +299,7 @@ class OriginalKlineData(BaseData):
     def __post_init__(self) -> None:
         """"""
         self.vt_symbol: str = f"{self.symbol}.{self.exchange.value}"
+
 
 @dataclass
 class QuoteData(BaseData):
@@ -405,6 +409,7 @@ class CancelRequest:
         """"""
         self.vt_symbol: str = f"{self.symbol}.{self.exchange.value}"
 
+
 @dataclass
 class OrderQueryRequest:
     """
@@ -417,6 +422,7 @@ class OrderQueryRequest:
     def __post_init__(self):
         """"""
         self.vt_symbol = f"{self.symbol}.{self.exchange.value}"
+
 
 @dataclass
 class HistoryRequest:
@@ -434,6 +440,7 @@ class HistoryRequest:
     def __post_init__(self) -> None:
         """"""
         self.vt_symbol: str = f"{self.symbol}.{self.exchange.value}"
+
 
 @dataclass
 class QuoteRequest:
@@ -473,6 +480,7 @@ class QuoteRequest:
             gateway_name=gateway_name,
         )
         return quote
+
 
 class GridPositionCalculator(object):
     """

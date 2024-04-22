@@ -42,7 +42,7 @@ from howtrader.trader.object import (
     SubscribeRequest,
     HistoryRequest,
     OriginalKlineData,
-    PremiumRateData
+    FundingRateData
 )
 from howtrader.trader.event import EVENT_TIMER
 from howtrader.event import Event, EventEngine
@@ -148,7 +148,7 @@ class BinanceUsdtGateway(BaseGateway):
         self.rest_api: "BinanceUsdtRestApi" = BinanceUsdtRestApi(self)
 
         self.orders: Dict[str, OrderData] = {}
-        self.positions:Dict[str, PositionData] = {}
+        self.positions: Dict[str, PositionData] = {}
         self.get_server_time_interval: int = 0
 
     def connect(self, setting: dict) -> None:
@@ -196,11 +196,11 @@ class BinanceUsdtGateway(BaseGateway):
         """query position"""
         self.rest_api.query_position()
 
-    def query_premium_rate(self) -> None:
+    def query_funding_rate(self) -> None:
         """query premium rate/index"""
-        self.rest_api.query_premium_rate()
+        self.rest_api.query_funding_rate()
 
-    def query_latest_kline(self, req: HistoryRequest)-> None:
+    def query_latest_kline(self, req: HistoryRequest) -> None:
         self.rest_api.query_latest_kline(req)
 
     def query_history(self, req: HistoryRequest) -> List[BarData]:
@@ -223,7 +223,6 @@ class BinanceUsdtGateway(BaseGateway):
             # self.rest_api.query_position()
             self.get_server_time_interval = 0
 
-
     def on_order(self, order: OrderData) -> None:
         """on order update"""
         order.update_time = generate_datetime(time.time() * 1000)
@@ -234,7 +233,7 @@ class BinanceUsdtGateway(BaseGateway):
 
         else:
             traded: Decimal = order.traded - last_order.traded
-            if traded < 0: # filter the order is not in sequence
+            if traded < 0:  # filter the order is not in sequence
                 return None
 
             if traded > 0:
@@ -267,6 +266,7 @@ class BinanceUsdtGateway(BaseGateway):
 
     def get_position(self, symbol: str):
         return self.positions.get(symbol, None)
+
 
 class BinanceUsdtRestApi(RestClient):
     """Binance USDT/BUSD future rest api"""
@@ -317,8 +317,7 @@ class BinanceUsdtRestApi(RestClient):
             request.params["timestamp"] = timestamp
 
             query: str = urllib.parse.urlencode(sorted(request.params.items()))
-            signature: bytes = hmac.new(self.secret, query.encode(
-                "utf-8"), hashlib.sha256).hexdigest()
+            signature: str = hmac.new(self.secret, query.encode("utf-8"), hashlib.sha256).hexdigest()
 
             query += "&signature={}".format(signature)
             path: str = request.path + "?" + query
@@ -399,6 +398,7 @@ class BinanceUsdtRestApi(RestClient):
             callback=self.on_query_account,
             data=data
         )
+
     def query_position_side(self):
         """query position side/mode"""
         data: dict = {"security": Security.SIGNED}
@@ -475,7 +475,7 @@ class BinanceUsdtRestApi(RestClient):
             data=data
         )
 
-    def query_premium_rate(self) -> None:
+    def query_funding_rate(self) -> None:
         data = {
             "security": Security.NONE
         }
@@ -485,7 +485,7 @@ class BinanceUsdtRestApi(RestClient):
         self.add_request(
             method="GET",
             path=path,
-            callback=self.on_query_premium_rate,
+            callback=self.on_query_funding_rate,
             data=data
         )
 
@@ -516,7 +516,7 @@ class BinanceUsdtRestApi(RestClient):
             "side": DIRECTION_VT2BINANCES[req.direction],
             "quantity": req.volume,
             "newClientOrderId": orderid,
-            "newOrderRespType":"RESULT"
+            "newOrderRespType": "RESULT"
         }
 
         if req.type == OrderType.TAKER:
@@ -619,6 +619,7 @@ class BinanceUsdtRestApi(RestClient):
         local_time: int = int(time.time() * 1000)
         server_time: int = int(data["serverTime"])
         self.time_offset: int = local_time - server_time
+
     def on_query_time_failed(self, status_code: int, request: Request):
         self.query_time()
 
@@ -645,7 +646,7 @@ class BinanceUsdtRestApi(RestClient):
         self.gateway.write_log("query account successfully")
 
     def on_query_position_side(self, data: dict, request: Request) -> None:
-        if data.get("dualSidePosition", False): # true will means dual position side
+        if data.get("dualSidePosition", False):  # true will means dual position side
             self.set_position_side()
 
     def set_position_side(self) -> None:
@@ -664,7 +665,8 @@ class BinanceUsdtRestApi(RestClient):
             callback=self.on_set_position_side,
             data=data
         )
-    def on_set_position_side(self, data: dict, request:Request) -> None:
+
+    def on_set_position_side(self, data: dict, request: Request) -> None:
         self.gateway.write_log("set position side to one-way mode")
 
     def on_query_position(self, data: list, request: Request) -> None:
@@ -691,7 +693,7 @@ class BinanceUsdtRestApi(RestClient):
 
             self.gateway.on_position(position)
 
-    def on_query_order(self, data:dict, request: Request) -> None:
+    def on_query_order(self, data: dict, request: Request) -> None:
 
         key = (data["type"], data["timeInForce"])
         order_type = ORDERTYPE_BINANCES2VT.get(key, OrderType.LIMIT)
@@ -794,25 +796,31 @@ class BinanceUsdtRestApi(RestClient):
 
         self.gateway.write_log("query contract successfully")
 
-    def on_query_premium_rate(self, data: list, request: Request) -> None:
-        for d in data:
-            if int(d['nextFundingTime']) == 0:
+    def on_query_funding_rate(self, data: list, request: Request) -> None:
+        """on query funding rate 查询到资金费率的更新"""
+        for fund_data in data:
+            if int(fund_data.get('nextFundingTime', 0)) == 0:
                 continue
 
-            next_funding_datetime = generate_datetime(d['nextFundingTime'])
-            updated_datetime = generate_datetime(d['time'])
+            next_datetime = generate_datetime(fund_data['nextFundingTime'])
+            current_datetime = generate_datetime(time.time() * 1000)
+            delta = next_datetime - current_datetime
+            hour = delta.seconds // 3600
+            min = (delta.seconds // 60) % 60
 
-            premium_rate = PremiumRateData(
-                symbol=d['symbol'],
+            funding_rate = FundingRateData(
+                symbol=fund_data['symbol'],
                 exchange=Exchange.BINANCE,
-                last_funding_rate=Decimal(d['lastFundingRate']),
-                interest_rate=Decimal(d['interestRate']),
-                next_funding_datetime=next_funding_datetime,
-                updated_datetime=updated_datetime,
+                last_funding_rate_str=f"{float(fund_data['lastFundingRate']) * 100:.{4}f}",
+                next_funding_time_str=f"{hour}小时:{min}分钟",
+                next_funding_time=next_datetime,
+                last_funding_rate=float(fund_data['lastFundingRate']) * 100,
                 gateway_name=self.gateway_name
             )
 
-            self.gateway.on_premium_rate(premium_rate)
+
+
+            self.gateway.on_funding_rate(funding_rate)
 
     def on_send_order(self, data: dict, request: Request) -> None:
         """send order callback"""
@@ -979,24 +987,23 @@ class BinanceUsdtRestApi(RestClient):
             data={"security": Security.NONE}
         )
 
-    def on_query_latest_kline(self, datas:list, request: Request):
+    def on_query_latest_kline(self, datas: list, request: Request):
         if len(datas) > 0:
-            df = pd.DataFrame(datas, dtype=np.float64,
-                              columns=['open_time', 'open', 'high', 'low', 'close', 'volume', 'close_time', 'turnover',
-                                       'a2',
-                                       'a3', 'a4', 'a5'])
+            df = pd.DataFrame(datas, dtype=np.float64, columns=['open_time', 'open', 'high', 'low', 'close', 'volume',
+                                                                'close_time', 'turnover', 'a2', 'a3', 'a4', 'a5'])
             df = df[['open_time', 'open', 'high', 'low', 'close', 'volume', 'turnover']]
             df.set_index('open_time', inplace=True)
-            df.index = pd.to_datetime(df.index, unit='ms') # + pd.Timedelta(hours=8) # use the utc time.
+            df.index = pd.to_datetime(df.index, unit='ms')  # + pd.Timedelta(hours=8) # use the utc time.
 
             symbol = request.params.get("symbol", "")
             interval = Interval(request.params.get('interval'))
             kline_data = OriginalKlineData(
                 symbol=symbol,
-                exchange="BINANCE",
+                exchange=Exchange.BINANCE,
                 interval=interval,
                 klines=datas,
-                kline_df=df
+                kline_df=df,
+                gateway_name=self.gateway_name
             )
 
             self.gateway.on_kline(kline_data)
@@ -1063,7 +1070,8 @@ class BinanceUsdtRestApi(RestClient):
                 end: datetime = buf[-1].datetime
 
                 history.extend(buf)
-                msg: str = f"query historical kline data successfully, {req.symbol} - {req.interval.value}，{begin} - {end}"
+                msg: str = f"query historical kline data successfully, " \
+                           f"{req.symbol} - {req.interval.value}，{begin} - {end}"
                 self.gateway.write_log(msg)
 
                 # if the data len is less than limit, break the while loop
@@ -1086,6 +1094,7 @@ class BinanceUsdtRestApi(RestClient):
                     self.query_time()
         except Exception:
             pass
+
 
 class BinanceUsdtTradeWebsocketApi(WebsocketClient):
     """binance usdt/busd trade ws api"""
@@ -1141,14 +1150,13 @@ class BinanceUsdtTradeWebsocketApi(WebsocketClient):
                     position.pnl = float(pos_data["up"])
 
                 else:
-                    position: PositionData = PositionData(
-                    symbol=pos_data["s"],
-                    exchange=Exchange.BINANCE,
-                    direction=Direction.NET,
-                    volume=volume,
-                    price=float(pos_data["ep"]),
-                    pnl=float(pos_data["up"]),
-                    gateway_name=self.gateway_name)
+                    position: PositionData = PositionData(symbol=pos_data["s"],
+                                                          exchange=Exchange.BINANCE,
+                                                          direction=Direction.NET,
+                                                          volume=volume,
+                                                          price=float(pos_data["ep"]),
+                                                          pnl=float(pos_data["up"]),
+                                                          gateway_name=self.gateway_name)
 
                 self.gateway.on_position(position)
 
@@ -1156,9 +1164,6 @@ class BinanceUsdtTradeWebsocketApi(WebsocketClient):
         """order update"""
         ord_data: dict = packet["o"]
         key: Tuple[str, str] = (ord_data["o"], ord_data["f"])
-        # order_type: OrderType = ORDERTYPE_BINANCES2VT.get(key, None)
-        # if not order_type:
-        #     return
         order_type: OrderType = ORDERTYPE_BINANCES2VT.get(key, OrderType.LIMIT)
         price = Decimal(ord_data["p"])
         if price <= 0:
@@ -1180,6 +1185,7 @@ class BinanceUsdtTradeWebsocketApi(WebsocketClient):
         )
 
         self.gateway.on_order(order)
+
 
 class BinanceUsdtDataWebsocketApi(WebsocketClient):
     """Binance usdt/busd Data ws"""

@@ -6,7 +6,8 @@ from enum import Enum
 import pytz
 from tzlocal import get_localzone_name
 
-LOCAL_TZ = pytz.timezone(get_localzone_name()) #pytz.timezone("Asia/Shanghai")
+LOCAL_TZ = pytz.timezone(get_localzone_name())  # pytz.timezone("Asia/Shanghai")
+
 
 class Direction(Enum):
     """
@@ -26,6 +27,7 @@ class Offset(Enum):
     CLOSE = "CLOSE"
     CLOSETODAY = "CLOSETODAY"
     CLOSEYESTERDAY = "CLOSETODAY"
+
 
 class Status(Enum):
     """
@@ -83,7 +85,7 @@ class Exchange(Enum):
     """
     # CryptoCurrency
     FTX = "FTX"
-    OKEX = "OKEX"
+    OKX = "OKX"  # previous OKEX
     BITFINEX = "BITFINEX"
     BINANCE = "BINANCE"
     BYBIT = "BYBIT"  # bybit.com
